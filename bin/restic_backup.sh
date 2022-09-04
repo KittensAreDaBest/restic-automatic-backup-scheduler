@@ -137,14 +137,6 @@ if [ "$RESTIC_NOTIFY_BACKUP_DISCORD" = true ]; then
 	echo 'Discord Notifications are enabled: Silently computing backup summary stats...'
 
 	snapshot_size=$(restic stats latest | grep -i 'total size:' | cut -d ':' -f2 | xargs)  # xargs acts as trim
-	latest_snapshot_diff=$(restic snapshots --latest 2 --compact \
-		| grep -Ei "^[abcdef0-9]{8} " \
-		| awk '{print $1}' \
-		| tail -2 \
-		| tr '\n' ' ' \
-		| xargs restic diff)
-    added=$(echo "$latest_snapshot_diff" | grep -i 'added:' | awk '{print $2 " " $3}')
-    removed=$(echo "$latest_snapshot_diff" | grep -i 'removed:' | awk '{print $2 " " $3}')
 
-    curl -H "Accept: application/json" -H "Content-Type:application/json" -H "User-Agent: BerryBackup" -X POST --data "{\"username\": \"${RESTIC_NOTIFY_BACKUP_DISCORD_USERNAME}\", \"content\": \"Backup completed for ${RESTIC_BACKUP_PATHS} on ${RESTIC_REPOSITORY} \n**Summary:** \nAdded: ${added}. Removed: ${removed}. Snap size: ${snapshot_size}\"}" $RESTIC_NOTIFY_BACKUP_DISCORD_WEBHOOK
+    curl -H "Accept: application/json" -H "Content-Type:application/json" -H "User-Agent: BerryBackup" -X POST --data "{\"username\": \"${RESTIC_NOTIFY_BACKUP_DISCORD_USERNAME}\", \"content\": \"Backup completed for ${RESTIC_BACKUP_PATHS} on ${RESTIC_REPOSITORY} \nSnapshot size: ${snapshot_size}\"}" $RESTIC_NOTIFY_BACKUP_DISCORD_WEBHOOK
 fi
