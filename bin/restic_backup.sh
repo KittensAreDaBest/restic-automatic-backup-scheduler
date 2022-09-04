@@ -136,8 +136,8 @@ fi
 if [ "$RESTIC_NOTIFY_BACKUP_DISCORD" = true ]; then
 	echo 'Discord Notifications are enabled: Silently computing backup summary stats...'
 
-	snapshot_size=$(restic stats latest --tag "$RESTIC_BACKUP_TAG" | grep -i 'total size:' | cut -d ':' -f2 | xargs)  # xargs acts as trim
-	latest_snapshot_diff=$(restic snapshots --tag "$RESTIC_BACKUP_TAG" --latest 2 --compact \
+	snapshot_size=$(restic stats latest "$RESTIC_BACKUP_TAG" | grep -i 'total size:' | cut -d ':' -f2 | xargs)  # xargs acts as trim
+	latest_snapshot_diff=$(restic snapshots "$RESTIC_BACKUP_TAG" --latest 2 --compact \
 		| grep -Ei "^[abcdef0-9]{8} " \
 		| awk '{print $1}' \
 		| tail -2 \
