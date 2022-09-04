@@ -70,6 +70,10 @@ test "$OSTYPE" = msys || FS_ARG=--one-file-system
 restic unlock &
 wait $!
 
+if [ "$RESTIC_NOTIFY_BACKUP_DISCORD" = true ]; then
+	curl -H "Accept: application/json" -H "Content-Type:application/json" -H "User-Agent: BerryBackup" -X POST --data "{\"username\": \"${RESTIC_NOTIFY_BACKUP_DISCORD_USERNAME}\", \"content\": \"Backup started for ${RESTIC_BACKUP_PATHS} on ${RESTIC_REPOSITORY}\"}" $RESTIC_NOTIFY_BACKUP_DISCORD_WEBHOOK
+fi
+
 # Do the backup!
 # See restic-backup(1) or http://restic.readthedocs.io/en/latest/040_backup.html
 # --one-file-system makes sure we only backup exactly those mounted file systems specified in $RESTIC_BACKUP_PATHS, and thus not directories like /dev, /sys etc.
@@ -126,4 +130,21 @@ if [ "$RESTIC_NOTIFY_BACKUP_STATS" = true ]; then
 	else
 		echo "[WARN] Couldn't write the backup summary stats. File not found or not writable: ${RESTIC_BACKUP_NOTIFICATION_FILE}"
 	fi
+fi
+
+
+if [ "$RESTIC_NOTIFY_BACKUP_DISCORD" = true ]; then
+	echo 'Discord Notifications are enabled: Silently computing backup summary stats...'
+
+	snapshot_size=$(restic stats latest --tag "$RESTIC_BACKUP_TAG" | grep -i 'total size:' | cut -d ':' -f2 | xargs)  # xargs acts as trim
+	latest_snapshot_diff=$(restic snapshots --tag "$RESTIC_BACKUP_TAG" --latest 2 --compact \
+		| grep -Ei "^[abcdef0-9]{8} " \
+		| awk '{print $1}' \
+		| tail -2 \
+		| tr '\n' ' ' \
+		| xargs restic diff)
+    added=$(echo "$latest_snapshot_diff" | grep -i 'added:' | awk '{print $2 " " $3}')
+    removed=$(echo "$latest_snapshot_diff" | grep -i 'removed:' | awk '{print $2 " " $3}')
+
+    curl -H "Accept: application/json" -H "Content-Type:application/json" -H "User-Agent: BerryBackup" -X POST --data "{\"username\": \"${RESTIC_NOTIFY_BACKUP_DISCORD_USERNAME}\", \"content\": \"Backup completed for ${RESTIC_BACKUP_PATHS} on ${RESTIC_REPOSITORY} \n**Summary:** \nAdded: ${added}. Removed: ${removed}. Snap size: ${snapshot_size}\"}" $RESTIC_NOTIFY_BACKUP_DISCORD_WEBHOOK
 fi

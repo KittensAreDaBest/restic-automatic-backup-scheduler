@@ -33,3 +33,8 @@ export RESTIC_VERBOSITY_LEVEL=0
 # (optional) Desktop notifications. See restic_backup.sh for details on how to set this up.
 export RESTIC_NOTIFY_BACKUP_STATS=false
 export RESTIC_BACKUP_NOTIFICATION_FILE=
+
+# Discord webhook notifications.
+export RESTIC_NOTIFY_BACKUP_DISCORD=false
+export RESTIC_NOTIFY_BACKUP_DISCORD_WEBHOOK=https://your.discord.url.here
+export RESTIC_NOTIFY_BACKUP_DISCORD_USERNAME=restic
