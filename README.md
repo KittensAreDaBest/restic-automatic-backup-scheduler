@@ -15,6 +15,7 @@
 [![License](https://img.shields.io/badge/license-BSD--3-blue)](LICENSE)
 [![OSS Lifecycle](https://img.shields.io/osslifecycle/erikw/restic-automatic-backup-scheduler)](https://github.com/Netflix/osstracker)
 [![SLOC](https://img.shields.io/tokei/lines/github/erikw/restic-automatic-backup-scheduler?logo=codefactor&logoColor=lightgrey)](#)
+[![Top programming languages used](https://img.shields.io/github/languages/top/erikw/restic-automatic-backup-scheduler)](#)
 <br>
 
 [![Contributors](https://img.shields.io/github/contributors/erikw/restic-automatic-backup-scheduler)](https://github.com/erikw/restic-automatic-backup-scheduler/graphs/contributors) including these top contributors:
@@ -25,16 +26,18 @@
 # Intro
 [restic](https://restic.net/) is a command-line tool for making backups, the right way. Check the official website for a feature explanation. As a storage backend, I recommend [Backblaze B2](https://www.backblaze.com/b2/cloud-storage.html) as restic works well with it, and it is (at the time of writing) very affordable for the hobbyist hacker! (anecdotal: I pay for my full-systems backups each month typically < 1 USD).
 
-Unfortunately restic does not come pre-configured with a way to run automated backups, say every day. However it's possible to set this up yourself using built-in tools in your OS and some wrappers. For Linux with systemd, it's convenient to use systemd timers. For macOS systems, we can use built-in LaunchAgents. For Windows we can use ScheduledTasks. Any OS having something cron-like will also work!
+Unfortunately restic does not come pre-configured with a way to run automated backups, say every day. However, it's possible to set this up yourself using built-in tools in your OS and some wrappers. For Linux with systemd, it's convenient to use systemd timers. For macOS systems, we can use built-in LaunchAgents. For Windows we can use ScheduledTasks. Any OS having something cron-like will also work!
 
 Here follows a step-by step tutorial on how to set it up, with my sample script and configurations that you can modify to suit your needs.
 
-Note, you can use any restic's supported [storage backends](https://restic.readthedocs.io/en/latest/030_preparing_a_new_repo.html). The setup should be similar but you will have to use other configuration variables to match your backend of choice.
+Note, you can use any restic's supported [storage backends](https://restic.readthedocs.io/en/latest/030_preparing_a_new_repo.html). The setup should be similar, but you will have to use other configuration variables to match your backend of choice.
 
 ## Project Scope
+**Update:** this project is feature complete (see reasoning below). Only bug fixes wull be accepted. Feel free to fork if you want to add more features; being a forking base was the initial scope of this project!
+
 The scope for this is not to be a full-fledged super solution that solves all the problems and all possible setups. The aim is to be a hackable code base for you to start sewing up the perfect backup solution that fits your requirements!
 
-Nevertheless the project should work out of the box, be minimal but still open the doors for configuration and extensions by users.
+Nevertheless, the project should work out of the box, be minimal but still open the doors for configuration and extensions by users.
 
 To use a different storage backend than B2, you should only need to tweak a few settings variables in the backup profile as well as some restic arguments inside `restic_backup.sh`.
 
@@ -206,9 +209,9 @@ I describe here one of may ways you can get restic and this backup script workin
 
 **TL;DR setup**
 1. Install [scoop](https://scoop.sh/)
-1. Install dependencies from a PowerShell with *administrator privileges*:
+1. Install dependencies from a PowerShell with *administrator privileges*. `pwsh` should be installed to be able to run powershell in shebang scripts.
    ```console
-	powershell> scoop install restic make git
+	powershell> scoop install restic make git pwsh
    ```
 1. In a *non-privileged* PowerShell, start git-bash and clone this repo
    ```console
@@ -305,17 +308,17 @@ $ git clone https://github.com/erikw/restic-automatic-backup-scheduler.git && cd
 
 Make a quick search-and-replace in the source files:
 ```console
-$ find etc bin -type f -exec sed -i.bak -e 's|$INSTALL_PREFIX||g' {} \; -exec rm {}.bak \;
+$ find bin etc usr Library ScheduledTask -type f -exec sed -i.bak -e 's|{{ INSTALL_PREFIX }}||g' {} \; -exec rm {}.bak \;
 ```
 and you should now see that all files have been changed like e.g.
 ```diff
--export RESTIC_PASSWORD_FILE="$INSTALL_PREFIX/etc/restic/pw.txt"
+-export RESTIC_PASSWORD_FILE="{{ INSTALL_PREFIX }}/etc/restic/pw.txt"
 +export RESTIC_PASSWORD_FILE="/etc/restic/pw.txt"
 ```
 
-Why? The OS specific TL;DR setups above all use the [Makefile](Makefile) or a package manager to install these files. The placeholder string `$INSTALL_PREFIX` is in the source files for portability reasons, so that the Makefile can support all different operating systems. `make` users can set a different `$PREFIX` when installing like `PREFIX=/usr/local make install-systemd`.
+Why? The OS specific TL;DR setups above all use the [Makefile](Makefile) or a package manager to install these files. The placeholder string `{{ INSTALL_PREFIX }}` is in the source files for portability reasons, so that the Makefile can support all different operating systems. `make` users can set a different `$PREFIX` when installing like `PREFIX=/usr/local make install-systemd`.
 
-In this detailed manual setup we will copy all files manually to `/etc`and `/bin`. Thus we need to remove the placeholder string `$INSTALL_PREFIX` in the source files as a first step.
+In this detailed manual setup we will copy all files manually to `/etc`and `/bin`. Thus, we need to remove the placeholder string `{{ INSTALL_PREFIX }}` in the source files as a first step.
 
 
 #### 1. Create Backblaze B2 Account, Bucket and Keys
@@ -441,12 +444,18 @@ To create a different backup and use you can do:
 # restic_backup.sh
 ```
 
+### Optional: Summary stats log
+
+When enabled, it will write to a CSV log file the stats after each backup. Can be enabled by uncommenting its env variable (`RESTIC_BACKUP_STATS_DIR`) on the global environment file or defining it on a specific profile.
+
+The stats log (as well as) the desktop notifications incur in an additional run of `restic snapshots` and `restic diff`. This execution is shared with the notifications (no extra run).
+
 ### Optional: Desktop Notifications
 <img src="img/macos_notification.png" align="right" />
 
-It's a good idea to be on top of your backups to make sure that they don't increase a lot in size and incur high costs. However it's notoriously tricky to make GUI notifications correctly from a non-user process (e.g. root).
+It's a good idea to be on top of your backups to make sure that they don't increase a lot in size and incur high costs. However, it's notoriously tricky to make GUI notifications correctly from a non-user process (e.g. root).
 
-Therefore this project provides a lightweight solution for desktop notifications that works like this: Basically `restic_backup.sh` will append a summary line of the last backup to a user-owned file (the user running your OS's desktop environment) in a fire-and-forget fashion. Then the user has a process that reads this and forward each line as a new message to the desktop environment in use.
+Therefore, this project provides a lightweight solution for desktop notifications that works like this: Basically `restic_backup.sh` will append a summary line of the last backup to a user-owned file (the user running your OS's desktop environment) in a fire-and-forget fashion. Then the user has a process that reads this and forward each line as a new message to the desktop environment in use.
 
 To set desktop notifications up:
 1. Create a special FIFO file as your desktop user:
@@ -455,12 +464,11 @@ To set desktop notifications up:
 	```
 1. In your profile, e.g. `/etc/restic/default.sh`, set:
 	```bash
-	RESTIC_NOTIFY_BACKUP_STATS=true
 	RESTIC_BACKUP_NOTIFICATION_FILE=/home/user/.cache/notification-queue
 	```
 1. Create a listener on the notification queue file that forwards to desktop notifications
    * Linux auto start + cross-platform notifier / notify-send
-      * [notification-queue-notifier](https://github.com/gerardbosch/dotfiles/blob/ddc1491056822eab45dedd131f1946308ef62135/home/bin/notification-queue-notifier)
+      * [notification-queue-notifier](https://github.com/gerardbosch/dotfiles/blob/2130d54daa827e7f885abac0d4f10b6f67d28ad3/home/bin/notification-queue-notifier)
       * [notification-queue.desktop](https://github.com/gerardbosch/dotfiles-linux/blob/ea0f75bfd7a356945544ecaa42a2fc35c9fab3a1/home/.config/autostart/notification-queue.desktop)
    * macOS auto start + [terminal-notifier](https://github.com/julienXX/terminal-notifier)
       * [notification-queue-notifier.sh](https://github.com/erikw/dotfiles/blob/8a942defe268292200b614951cdf433ddccf7170/bin/notification-queue-notifier.sh)
@@ -475,10 +483,10 @@ We want to be aware when the automatic backup fails, so we can fix it. Since my 
 Put this file in `/bin`:
 * `systemd-email`: Sends email using sendmail(1). This script also features time-out for not spamming Gmail servers and getting my account blocked.
 
-Put this files in `/etc/systemd/system/`:
-* `status-email-user@.service`: A service that can notify you via email when a systemd service fails. Edit the target email address in this file.
+Put this file in `/etc/systemd/system/`:
+* `status-email-user@.service`: A service that can notify you via email when a systemd service fails. Edit the target email address in this file, and replace or remove `{{ INSTALL_PREFIX }}` according to your installation.
 
-Now edit `restic-backup@.service` and `status-email-user@.service` to call this service failure.
+Now edit `/usr/lib/systemd/system/restic-backup@.service` and `/usr/lib/systemd/system/restic-check@.service` to call this service failure.
 ```
 OnFailure=status-email-user@%n.service
 ```
@@ -498,6 +506,7 @@ For a laptop, it can make sense to not do heavy backups when your on a metered c
 1. Edit `restic-backup@.service` and `restic-check@.service` to require the new service to be in success state:
    ```
    Requires=nm-unmetered-connection.service
+   After=nm-unmetered-connection.service
    ```
 1. Copy and paste the command below, it will install the following files and refresh systemd daemon:
 1. Put this file in `/etc/systemd/system/`:
@@ -525,14 +534,16 @@ straightforward (it needs to run with sudo to read environment). Just run:
 
 * `sudo resticw WHATEVER` (e.g. `sudo resticw snapshots`) to use the default profile.
 * You can run the wrapper by passing a specific profile: `resticw -p anotherprofile snapshots`.
+* The wrapper has extras on top of `restic` like `--diff-latest` option.
 
 Useful commands:
-| Command                                           | Description                                                       |
-|---------------------------------------------------|-------------------------------------------------------------------|
-| `resticw snapshots`                               | List backup snapshots                                             |
-| `resticw diff <snapshotId-1> <snapshotId-2>`      | Show the changes between backup snapshots                         |
-| `resticw stats` / `resticw stats snapshotId ...`  | Show the statistics for the whole repo or the specified snapshots |
-| `resticw mount /mnt/restic`                       | Mount your remote repository                                      |
+| Command                                           | Description                                                                           |
+|---------------------------------------------------|---------------------------------------------------------------------------------------|
+| `resticw snapshots`                               | List backup snapshots                                                                 |
+| `resticw diff <snapshotId-1> <snapshotId-2>`      | Show the changes between backup snapshots                                             |
+| `resticw stats` / `resticw stats snapshotId ...`  | Show the statistics for the whole repo or the specified snapshots                     |
+| `resticw mount /mnt/restic`                       | Mount your remote repository                                                          |
+| `resticw --diff-latest`                           | Show latest snapshot changes: Runs `restic diff` after finding the latest 2 snapshots |
 
 
 
@@ -542,6 +553,32 @@ There is a make target to remove all files (scripts and **configs)** that were i
 ```console
 $ sudo make uninstall
 ```
+
+
+# Debugging
+The best way to debug what's going on is to run the `restic_backup.sh` script with bash's trace function. You can activate it by running the script with `bash -x`:
+
+```consle
+$ source /etc/restic/default.env.sh
+$ bash -x /bin/restic_backup.sh
+```
+
+To debug smaller portions of the backup script, insert these lines at the top and bottom of the relevant code portions e.g.:
+
+```bash
+set -x
+exec 2>/tmp/restic-automatic-backup-scheduler.log
+<code to debug>
+set +x
+```
+
+and then inspect the outputs like
+
+```shell
+$ less /tmp/restic-automatic-backup-scheduler.log
+$ tail -f /tmp/restic-automatic-backup-scheduler.log # or follow output like this.
+```
+
 
 # Development
 * To not mess up your real installation when changing the `Makefile` simply install to a `$PREFIX` like
